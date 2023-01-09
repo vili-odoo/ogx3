@@ -7,6 +7,13 @@ export const pickKey = obj => {
     return keys[Math.floor(Math.random() * keys.length)]
 }
 
-export const getCtx = canvasId => {
-    return document.getElementById(canvasId).getContext('2d')
+export const getCtx = (canvasId, attrs) => {
+    return document.getElementById(canvasId).getContext('2d', {
+        alpha: false,
+        ...attrs,
+    })
+}
+
+export const getDimensions = ctx => {
+    return { w: ctx.canvas.width, h: ctx.canvas.height }
 }

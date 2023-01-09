@@ -1,73 +1,80 @@
 <script>
-    import { layersData } from '../stores.js'
+    import { onMount } from 'svelte'
     import conf from '../conf/conf.js'
+    import definitions from '../conf/definitions.js'
     import effects from '../conf/effects.js'
     import layerClasses from '../conf/layerClasses.js'
-    import { pickKey } from '../lib/helpers.js'
-    import OGApp from '../lib/OGApp.js'
+    import { pickKey, getCtx } from '../lib/helpers.js'
+    import OGImage from '../lib/OGImage.js'
+    import OGComposition from '../lib/OGComposition.js'
     import Layer from './Layer.svelte'
 
-    const app = new OGApp(conf)
+    const frameDelay = Math.ceil(1000 / conf.fps)
 
-    const update = () => {
-        layersData.update(layerData => app.layers.map(
-            (l, i) => {
-                const fx = Object.fromEntries(Object.entries(effects).map(e => [
-                    e[0], l.effects.includes(e[1]),
-                ]))
-                return { layer: l, id: i, images: l.images, effects: fx }
+    let state = 'loading'
+    const images = {}
+    let frameId = 0
+    let composition = null
+    let oComposition = null
+
+    const generateGif = () => {
+        if (state !== 'ready') return
+
+        state = 'generating'
+        Promise.allSettled(Object.values(images).map(imgs => Promise.allSettled(
+            Object.values(imgs).map(image => image.promise)
+        ))).then(() => {
+            const gifCtx = getCtx('generation', { willReadFrequently: true })
+            const gifComposition = new OGComposition(
+                gifCtx,
+                conf.framecount,
+            )
+            for (const layerData of composition.layersData) gifComposition.addLayer(layerData.layer, null)
+
+            const gif = new GIF({ width: conf.width, height: conf.height })
+            for (let i = 0; i < conf.framecount; i++) {
+                gifComposition.render(i)
+                gif.addFrame(gifCtx, { copy: true, delay: frameDelay })
             }
-        ))
+            gif.on('finished', blob => {
+                window.open(URL.createObjectURL(blob))
+                state = 'ready'
+            })
+            gif.render()
+        })
     }
 
-    const addLayer = () => {
-        const category = pickKey(layerClasses)
-        const item = pickKey(layerClasses[category])
-        app.addLayer(layerClasses[category][item], null).then(update)
+    const render = () => {
+        composition.render(frameId)
+        window.requestAnimationFrame(render)
     }
 
-    const replaceLayer = (category, item, layerToReplace) => {
-        app.addLayer(layerClasses[category][item], layerToReplace).then(update)
-    }
-
-    const moveLayer = (layer, up) => {
-        app.moveLayer(layer, up)
-        update()
-    }
-
-    const removeLayer = layer => {
-        app.removeLayer(layer)
-        update()
-    }
-
-    const addImageToLayer = (layer, category, item) => {
-        app.loadImage(category, item, '.png').then(() => {
-            layer.addImage(app.getImage(category, item))
-            update()
-        }).catch(() => {})
-    }
-
-    const removeImageFromLayer = (layer, imageId) => {
-        layer.removeImage(imageId)
-        update()
-    }
-
-    const addEffect = (layer, effect) => {
-        layer.addEffect(effect)
-        update()
-    }
-
-    const removeEffect = (layer, effect) => {
-        layer.removeEffect(effect)
-        update()
-    }
-
-    const docPromise = new Promise((resolve, reject) => {
-        if (document.readyState === 'loading') document.addEventListener('load', resolve)
-        else resolve()
+    onMount(() => {
+        composition = new OGComposition(getCtx('preview'), conf.framecount)
+        oComposition = composition.observable
+        const promises = []
+        for (const category in definitions) {
+            images[category] = {}
+            for (const item in definitions[category]) {
+                const promise = new Promise((resolve, reject) => {
+                    const thumbnail = new Image()
+                    thumbnail.onload = resolve
+                    thumbnail.onerror = reject
+                    thumbnail.src = `./images/${category}/${item}.gif`
+                }).catch(() => {})
+                promises.push(promise)
+                images[category][item] = new OGImage(category, item, definitions[category][item], '.png')
+            }
+        }
+        Promise.allSettled(promises).finally(() => {
+            setInterval(() => {
+                frameId++
+                if (frameId === conf.framecount) frameId = 0
+            }, frameDelay)
+            render()
+            state = 'ready'
+        })
     })
-
-    const appPromise = Promise.all([ docPromise, app.init() ]).then(addLayer)
 </script>
 
 <main>
@@ -79,43 +86,43 @@
             <div><p>open-source generator</p></div>
         </div>
         <div class="gifs container">
-            <div><canvas id="preview" width={conf.WIDTH} height={conf.HEIGHT}></canvas></div>
-            {#await appPromise then _}
-                <canvas id="generate" class="hidden" width={conf.WIDTH} height={conf.HEIGHT}></canvas>
-                <div>
-                    <p>{$layersData.length} layer(s)</p>
-                </div>
-                <div>
-                    <button on:click={app.generateGif.bind(app)}>Generate GIF</button>
-                </div>
-            {/await}
+            <div><canvas id="preview" width={conf.width} height={conf.height}></canvas></div>
+            <div><canvas id="generation" class="hidden" width={conf.width} height={conf.height}></canvas></div>
+            {#if state === 'ready'}
+                <div><button on:click={generateGif}>Generate GIF</button></div>
+            {/if}
+            <div>
+                {#if state === 'loading'}
+                    <p>Loading...</p>
+                {:else if state === 'generating'}
+                    <h2>Generating GIF...</h2>
+                    <p>Your browser might ask you to allow pop-ups</p>
+                {:else if state === 'ready'}
+                    <p>{$oComposition.length} layer(s)</p>
+                {/if}
+            </div>
         </div>
     </div>
 
-    {#await appPromise then _}
+    {#if state === 'ready'}
         <div class="content container">
-            {#each $layersData as layerData (layerData.layer)}
+            {#each $oComposition as layerData, pos (layerData.id)}
                 <div class="block">
                     <Layer
-                        layersCount={$layersData.length}
+                        {composition}
+                        {pos}
+                        layer={layerData.layer}
+                        {images}
                         {effects}
                         {layerClasses}
-                        {layerData}
-                        {replaceLayer}
-                        {moveLayer}
-                        {removeLayer}
-                        {addImageToLayer}
-                        {removeImageFromLayer}
-                        {addEffect}
-                        {removeEffect}
                     />
                 </div>
             {/each}
             <div class="block">
-                <button on:click={addLayer}>Add a layer</button>
+                <button on:click={() => { composition.addLayer(new layerClasses['full-frame']['static'](), null) }}>Add a layer</button>
             </div>
         </div>
-    {/await}
+    {/if}
 </main>
 
 <style>
@@ -126,7 +133,7 @@
     }
 
     .sidebar, .content {
-        overflow: auto;
+        overflow-y: auto;
         padding: 16px;
     }
 

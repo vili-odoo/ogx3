@@ -1,26 +1,34 @@
 <script>
-    export let layerData
-    export let addImageToLayer
+    export let layer
+    export let images
 
-    const definitions = layerData.layer.conf.DEFINITIONS
-    let openCategory = Object.keys(definitions)[0]
-    if (layerData.images.length > 0) openCategory = layerData.images[layerData.images.length - 1].category
+    $: oLayer = layer.observable
+
+    let openCategory = Object.keys(images)[0]
+    if ($oLayer && $oLayer.images.length > 0) openCategory = $oLayer.images[$oLayer.images.length - 1].category
+
+    const addImage = item => {
+        const image = images[openCategory][item]
+        image.load().then(() => {
+            layer.addImage(image)
+        }).catch(() => {})
+    }
 </script>
 
 <div class="container grid">
-    <div class="block sequence">
+    <div class="block short sequence">
         <p>Categories of available images:</p>
-        {#each Object.keys(definitions) as category}
+        {#each Object.keys(images) as category}
             <button
                 on:click={() => { openCategory = category }}
                 disabled={openCategory === category}
             >{category}</button>
         {/each}
     </div>
-    <div class="block sequence">
+    <div class="block short sequence">
         <p>Add an image:</p>
-        {#each Object.keys(definitions[openCategory]) as item}
-            <button on:click={() => { addImageToLayer(layerData.layer, openCategory, item) }}>
+        {#each Object.keys(images[openCategory]) as item}
+            <button on:click={() => { addImage(item) }}>
                 <img src={`./images/${openCategory}/${item}.gif`} alt={item} />
                 {item}
             </button>

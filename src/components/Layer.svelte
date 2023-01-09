@@ -4,33 +4,30 @@
     import ImageList from './ImageList.svelte'
     import ImageBrowser from './ImageBrowser.svelte'
 
-    export let layersCount
+    export let composition
+    export let pos
+    export let layer
+    export let images
     export let effects
     export let layerClasses
-    export let layerData
-    export let replaceLayer
-    export let moveLayer
-    export let removeLayer
-    export let addImageToLayer
-    export let removeImageFromLayer
-    export let addEffect
-    export let removeEffect
 
     let expanded = true
+    const oComposition = composition.observable
+    $: oLayer = layer.observable
 </script>
 
 <div class="layer container">
     <div class="header container">
-        <h2>Layer {layerData.id + 1}</h2>
+        <h2>Layer {pos + 1}</h2>
         <div><button
-            on:click={() => { moveLayer(layerData.layer, true) }}
-            disabled={layerData.id === layersCount - 1}
+            on:click={() => { composition.moveLayer(layer, true) }}
+            disabled={pos === $oComposition.length - 1}
         >▲</button></div>
         <div><button
-            on:click={() => { moveLayer(layerData.layer, false) }}
-            disabled={layerData.id === 0}
+            on:click={() => { composition.moveLayer(layer, false) }}
+            disabled={pos === 0}
         >▼</button></div>
-        <div><button on:click={() => { removeLayer(layerData.layer) }}>✕</button></div>
+        <div><button on:click={() => { composition.removeLayer(layer) }}>✕</button></div>
         <div><button on:click={() => { expanded = !expanded }}>
             {#if expanded}
                 Collapse
@@ -39,16 +36,16 @@
             {/if}
         </button></div>
         {#if !expanded}
-            <p><strong>{layerData.layer.category} {layerData.layer.item}</strong></p>
-            <p>{layerData.images.length} image(s)</p>
+            <p><strong>{layer.category} {layer.item}</strong></p>
+            <p>{$oLayer.images.length} image(s)</p>
         {/if}
     </div>
 
     <div class="controls container" class:hidden={!expanded}>
-        <LayerBrowser {layerClasses} {layerData} {replaceLayer} />
-        <EffectBrowser {effects} {layerData} {addEffect} {removeEffect} />
-        <ImageList {layerData} {removeImageFromLayer} />
-        <ImageBrowser {layerData} {addImageToLayer} />
+        <LayerBrowser {composition} {layer} {layerClasses} />
+        <EffectBrowser {layer} {effects} />
+        <ImageList {layer} />
+        <ImageBrowser {layer} {images} />
     </div>
 </div>
 

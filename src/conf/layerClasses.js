@@ -1,4 +1,4 @@
-import { randomize } from '../lib/helpers.js'
+import { randomize, getDimensions } from '../lib/helpers.js'
 import OGLayer from '../lib/OGLayer.js'
 
 class OGLayerFullframe extends OGLayer {
@@ -13,8 +13,7 @@ class OGLayerFullframeStatic extends OGLayerFullframe {
     }
 
     draw(ctx, t) {
-        const w = this.conf.WIDTH
-        const h = this.conf.HEIGHT
+        const { w, h } = getDimensions(ctx)
         for (let imageId = 0; imageId < this.images.length; imageId++) {
             this.drawImage(ctx, t, imageId, w / 2, h / 2, w, h, 0)
         }
@@ -27,8 +26,7 @@ class OGLayerFullframeZoom extends OGLayerFullframe {
     }
 
     draw(ctx, t) {
-        const w = this.conf.WIDTH
-        const h = this.conf.HEIGHT
+        const { w, h } = getDimensions(ctx)
         for (let imageId = 0; imageId < this.images.length; imageId++) {
             this.drawImage(ctx, t, imageId, w / 2, h / 2, w * 1.5, h * 1.5, 0)
         }
@@ -41,8 +39,7 @@ class OGLayerFullframeBlink extends OGLayerFullframe {
     }
 
     draw(ctx, t) {
-        const w = this.conf.WIDTH
-        const h = this.conf.HEIGHT
+        const { w, h } = getDimensions(ctx)
         const imageId = Math.floor(t * this.images.length)
         this.drawImage(ctx, t, imageId, w / 2, h / 2, w, h, 0)
     }
@@ -54,9 +51,8 @@ class OGLayerMini extends OGLayer {
     }
 
     drawMini(ctx, t, x, y) {
+        const { w, h } = getDimensions(ctx)
         for (let imageId = 0; imageId < this.images.length; imageId++) {
-            const w = this.conf.WIDTH
-            const h = this.conf.HEIGHT
             this.drawImage(ctx, t, imageId, x * w / 2 + w / 4, y * h / 2 + h / 4, w / 2, h / 2, 0)
         }
     }
@@ -127,9 +123,8 @@ class OGLayerStrip extends OGLayer {
         return 'strip'
     }
 
-    getLengths(count) {
-        const w = this.conf.WIDTH
-        const h = this.conf.HEIGHT
+    getLengths(ctx, count) {
+        const { w, h } = getDimensions(ctx)
         const squareSide = Math.min(w / count, h)
         const width = squareSide * w / h
         const height = squareSide
@@ -145,7 +140,7 @@ class OGLayerStripStatic extends OGLayerStrip {
     }
 
     draw(ctx, t) {
-        const { x, y, width, height } = this.getLengths(this.images.length)
+        const { x, y, width, height } = this.getLengths(ctx, this.images.length)
         for (let imageId = 0; imageId < this.images.length; imageId++) {
             this.drawImage(ctx, t, imageId, x + imageId * height, y, width, height, 0)
         }
@@ -166,7 +161,7 @@ class OGLayerStripWindow extends OGLayerStrip {
         ), count)
         const firstImageId = Math.floor(count * relT)
         const lastImageId = firstImageId + windowCount
-        const { x, y, width, height } = this.getLengths(count)
+        const { x, y, width, height } = this.getLengths(ctx, count)
         for (let imageId = 0; imageId < count; imageId++) {
             if (
                 (imageId >= firstImageId && imageId < lastImageId)
@@ -184,8 +179,8 @@ class OGLayerStripSlide extends OGLayerStrip {
     }
 
     draw(ctx, t) {
-        const w = this.conf.WIDTH
-        const { x, y, width, height } = this.getLengths(this.images.length)
+        const { w, h } = getDimensions(ctx)
+        const { x, y, width, height } = this.getLengths(ctx, this.images.length)
         for (let i = 0; i < 3; i++) {
             for (let imageId = 0; imageId < this.images.length; imageId++) {
                 const adjustedX = x + height * (imageId - 0.5) + w * (i - t)
@@ -215,8 +210,9 @@ class OGLayerCounterIncrease extends OGLayerCounter {
     }
 
     draw(ctx, t) {
-        const width = this.conf.WIDTH / 4
-        const height = this.conf.HEIGHT / 4
+        const { w, h } = getDimensions(ctx)
+        const width = w / 4
+        const height = h / 4
         const repetitions = this.getRepetitions(this.images.length)
         for (let counterId = 0; counterId < 3; counterId++) {
             const x = counterId * width + width / 2
@@ -238,8 +234,9 @@ class OGLayerCounterSlotmachine extends OGLayerCounter {
     }
 
     draw(ctx, t) {
-        const width = this.conf.WIDTH / 4
-        const height = this.conf.HEIGHT / 4
+        const { w, h } = getDimensions(ctx)
+        const width = w/ 4
+        const height = h / 4
         const repetitions = 1 + this.getRepetitions(this.images.length)
         for (let counterId = 0; counterId < 3; counterId++) {
             const peakT = 0.15
@@ -289,16 +286,17 @@ class OGLayerParticleExplosion extends OGLayerParticle {
     }
 
     draw(ctx, t) {
+        const { w, h } = getDimensions(ctx)
         const scale = 0.25
-        const width = this.conf.WIDTH * scale
-        const height = this.conf.HEIGHT * scale
+        const width = w * scale
+        const height = h * scale
         const startT = 0.7
         const particlesPerImage = Math.ceil(400 / this.images.length)
         for (let i = 0; i < particlesPerImage; i++) {
             for (let imageId = 0; imageId < this.images.length; imageId++) {
                 ctx.save()
-                let x = this.conf.WIDTH / 2
-                let y = this.conf.HEIGHT * 3 / 4
+                let x = w / 2
+                let y = h * 3 / 4
                 let rotation = 0
                 if (t >= startT) {
                     const particleValue = (i + imageId / this.images.length) / particlesPerImage
@@ -307,9 +305,9 @@ class OGLayerParticleExplosion extends OGLayerParticle {
                     const horV = Math.cos(angle) * v
                     const verV = Math.sin(angle) * v
                     const relT = (t - startT) / (1 - startT)
-                    const coords = this.calculateCoords(x / this.conf.WIDTH, y / this.conf.HEIGHT, horV, verV, relT, 1.8)
-                    x = coords.x * this.conf.WIDTH
-                    y = coords.y * this.conf.HEIGHT
+                    const coords = this.calculateCoords(x / w, y / h, horV, verV, relT, 1.8)
+                    x = coords.x * w
+                    y = coords.y * h
                     rotation += (2 * Math.PI) * relT * 1.2 * (randomize(particleValue, 0.3) - 0.5)
                 }
                 this.drawImage(ctx, t, imageId, x, y, width, height, rotation)
@@ -325,22 +323,23 @@ class OGLayerParticleConfetti extends OGLayerParticle {
     }
 
     draw(ctx, t) {
+        const { w, h } = getDimensions(ctx)
         const scale = 0.25
-        const width = this.conf.WIDTH * scale
-        const height = this.conf.HEIGHT * scale
+        const width = w * scale
+        const height = h * scale
         const particlesPerImage = Math.ceil(400 / this.images.length)
         for (let i = 0; i < particlesPerImage; i++) {
             for (let imageId = 0; imageId < this.images.length; imageId++) {
                 ctx.save()
                 const particleValue = (i + imageId / this.images.length) / particlesPerImage
-                let x = this.conf.WIDTH * (0.4 + 0.2 * randomize(particleValue, 0))
-                let y = this.conf.HEIGHT * (1 + 5 * randomize(particleValue, 0.1))
+                let x = w * (0.4 + 0.2 * randomize(particleValue, 0))
+                let y = h * (1 + 5 * randomize(particleValue, 0.1))
                 let rotation = 0
                 const horV = 7 * (randomize(particleValue, 0.2) - 0.5)
                 const verV = 25 + 10 * randomize(particleValue, 0.3)
-                const coords = this.calculateCoords(x / this.conf.WIDTH, y / this.conf.HEIGHT, horV, verV, t, 80)
-                x = coords.x * this.conf.WIDTH
-                y = coords.y * this.conf.HEIGHT
+                const coords = this.calculateCoords(x / w, y / h, horV, verV, t, 80)
+                x = coords.x * w
+                y = coords.y * h
                 rotation += (2 * Math.PI) * t * 3 * (randomize(particleValue, 0.4) - 0.5)
                 this.drawImage(ctx, t, imageId, x, y, width, height, rotation)
                 ctx.restore()
@@ -374,7 +373,7 @@ const classesToExport = [
 
 const obj = {}
 for (const cls of classesToExport) {
-    const l = new cls({})
+    const l = new cls()
     if (!(l.category in obj)) obj[l.category] = {}
     obj[l.category][l.item] = cls
 }

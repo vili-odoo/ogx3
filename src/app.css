@@ -51,6 +51,11 @@ canvas {
     padding: 16px;
 }
 
+.block.short {
+    max-height: 20vh;
+    overflow-y: auto;
+}
+
 .container {
     display: flex;
     gap: 16px;

@@ -1,22 +1,20 @@
 export default class {
-    #conf
     #category
     #item
+    #definition
     #extension
     #elems
-    #loadPromise
+    #state
+    #promise
 
-    constructor(conf, category, item, extension) {
-        this.#conf = conf
+    constructor(category, item, definition, extension) {
         this.#category = category
         this.#item = item
+        this.#definition = definition
         this.#extension = extension
         this.#elems = {}
-        this.#loadPromise = null
-    }
-
-    get #definition() {
-        return this.#conf.DEFINITIONS[this.#category][this.#item]
+        this.#state = 'pending'
+        this.#promise = Promise.resolve()
     }
 
     get category() {
@@ -27,26 +25,52 @@ export default class {
         return this.#item
     }
 
-    get loadPromise() {
-        return this.#loadPromise
+    get state() {
+        return this.#state
+    }
+
+    get promise() {
+        return this.#promise
+    }
+
+    #getT(part) {
+        if (part === '-') return 1
+        return parseFloat('0.' + part)
     }
 
     getElem(t) {
+        if (this.#state !== 'ready') return null
+
+        const finalPart = this.#definition[this.#definition.length - 1]
+        const relT = t % this.#getT(finalPart)
         for (const part of this.#definition) {
-            if (part === '-' || t <= parseFloat('0.' + part)) return this.#elems[part]
+            if (relT < this.#getT(part)) return this.#elems[part]
         }
     }
 
     load() {
-        this.#loadPromise = Promise.all(this.#definition.map(part => (
-            new Promise((resolve, reject) => {
-                const elem = new Image()
-                this.#elems[part] = elem
-                elem.onload = resolve
-                elem.onerror = reject
-                elem.src = `./images/${this.#category}/${this.#item}/${part}${this.#extension}`
+        if (this.#state !== 'pending' && this.#state !== 'errored') return this.#promise
+
+        this.#state = 'loading'
+        this.#promise = this.#promise.then(() => {
+            return Promise.allSettled(
+                this.#definition.map(part => (
+                    new Promise((resolve, reject) => {
+                        const elem = new Image()
+                        this.#elems[part] = elem
+                        elem.onload = resolve
+                        elem.onerror = reject
+                        elem.src = `./images/${this.#category}/${this.#item}/${part}${this.#extension}`
+                    })
+                ))
+            ).then(() => {
+                this.#state = 'ready'
+            }).catch(() => {
+                this.#elems = {}
+                this.#state = 'errored'
+                return Promise.reject()
             })
-        )))
-        return this.#loadPromise
+        })
+        return this.#promise
     }
 }
